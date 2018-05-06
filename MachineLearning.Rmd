@@ -1,0 +1,109 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+---
+## Mashine Learning Prediction Assignment - Final Project
+This is the final assignment for Coursera Practical Machine Learning training.  
+
+author: "Dobs"
+
+date: "May  05, 2018"
+
+output: html_document
+
+## Synopsis
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with.
+. Also we have to use the prediction algorithm build on the data from the pml-testing.csv file, in order to predict the execution type for the data in the pml-testing.csv file.
+
+## Data Processing
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+I have downloaded data and saved on a local drive 
+
+## Getting and Cleaning the data
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
+rm(list=ls()) #remove all objects from the current workspace
+library(caret)
+library(knitr)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+# set working directory to folder where data are stored
+setwd("C:/Users/Una/MLFinal")
+# load training pml data by interpreting "NA" and "#DIV/0!" as NA values
+training.pml.data=read.table("data/pml-training.csv", 
+                              header=TRUE, sep=",", 
+                              na.strings=c("NA", "#DIV/0!"))
+testing.pml.data=read.table("data/pml-testing.csv", 
+                              header=TRUE, sep=",", 
+                              na.strings=c("NA", "#DIV/0!"))
+## delete columns in data set that have more than 5% NA
+training.pml.data <- training.pml.data[, colMeans(is.na(training.pml.data)) <= .05]
+testing.pml.data <- testing.pml.data[, colMeans(is.na(testing.pml.data)) <= .05]
+opts_chunk$set(echo = TRUE)
+print(colnames(training.pml.data))
+## drop first 7 columns as they have no impact on classe attribute
+delete.columns <- c("x","user_name" , "raw_timestamp_part_1"  , "raw_timestamp_part_2", "cvtd_timestamp","new_window","num_window" ) 
+training.pml.data <- training.pml.data[, !(names(training.pml.data) %in% delete.columns)] 
+testing.pml.data <- testing.pml.data[, !(names(testing.pml.data) %in% delete.columns)] 
+dim(training.pml.data);dim(testing.pml.data)
+```
+## Check for covariates that have virtually no variablility.
+```{r}
+print(nearZeroVar(training.pml.data, saveMetrics=TRUE))
+## zeroVar and nzv are all FALSE.  Data do not need to be prefiletered beforehand
+```
+## Get datasets for prediction based on training.pml.data
+```{r}
+inTrain<-createDataPartition(y=training.pml.data$classe, p=0.75, list=FALSE)
+training<-training.pml.data[inTrain,]
+testing<-training.pml.data[-inTrain,]
+rm(inTrain,training.pml.data,delete.columns)
+```
+## Developing prediction Model  
+## Rundom Forest Test
+```{r}
+# We will use firstly the randomForest test to fit the predictor to the training set using all variables.
+mod.rf.training<-randomForest(classe~. , method = "rf", data=training)
+# Apply the method to the testing set.
+predict.rf.Testing = predict(mod.rf.training, newdata = testing)
+confusionMatrix(predict.rf.Testing, testing$classe)
+# Accuracy on the test set is 100%. Quality of the model could be ilustrated by the graph below.
+plot(predict.rf.Testing)
+```
+
+## Classification tree
+```{r}
+mod.rp.training <- train(classe ~ .,data=training, method="rpart")
+predict.rp.testing <- predict(mod.rp.training, testing)
+confusionMatrix(predict.rp.testing, testing$classe)
+# Accuracy : 0.6615 poor model. Graph also ilustrated that.
+fancyRpartPlot(mod.rp.training$finalModel)
+```
+
+## Caret Package method treebag
+```{r}
+mod.bg.training <- train(classe ~ .,data=training,method="treebag")
+predict.bg.testing <- predict(mod.bg.training, testing)
+confusionMatrix(predict.bg.testing, testing$classe)
+# Accuracy : 0.9996 
+```
+## Method Selection
+Looking at the related stats random forest is the best method
+The accuracy rate is 1 what means that out of sample error is 0
+The model looks too good and because of that additional analysis is required. Also we could use onlly 54 of 160 attributes that is pointing data quality issue.
+
+## Predict on testing.pml.data
+```{r}
+predict.testing.pml<-predict(mod.rf.training,newdata = testing.pml.data)
+predict.testing.pml
+```
